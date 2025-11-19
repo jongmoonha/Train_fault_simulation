@@ -49,9 +49,11 @@ def get_fault_frequency(config):
         'BPFI': 0.5*config['Nb']*(1 + config['Bd']/Pd*np.cos(config['a'])),
         'BPFO': 0.5*config['Nb']*(1 - config['Bd']/Pd*np.cos(config['a'])),
         'BSF' : (Pd/config['Bd'])*(1 - (config['Bd']/Pd*np.cos(config['a']))**2),
-        'FTF' : (0.5*config['Nb']*(1 - config['Bd']/Pd*np.cos(config['a'])))/config['Nb']
+        'FTF' : (0.5*config['Nb']*(1 - config['Bd']/Pd*np.cos(config['a'])))/config['Nb'],
+        'W1'  : 1.0,
+        'W2'  : 2.0
     }
-    label_map = {'I':'BPFI', 'O':'BPFO', 'B':'BSF'}
+    label_map = {'I':'BPFI', 'O':'BPFO', 'B':'BSF', 'W1':'W1', 'W2':'W2'}
     fr = config['speed_rpm']/60
     FCF = unit[label_map[config['condition']]]
     FTF = unit['FTF']
@@ -70,12 +72,15 @@ def fault_repeat_uncertainty(Unit_Fault, FCF, fr, t, Fs, FTF, condition, fr_std_
     slip, slip_std are fractional jitter applied to the nominal step in samples.
     Defaults leave behavior unchanged.
     """
+    if condition == 'W1' or condition == 'W2':
+        slip = 0.0 
+    
     # fr = fr + fr_std_ratio*fr*np.random.randn()
     Tp = 1.0/(FCF*fr)
     x = np.zeros_like(t)
     i = np.random.uniform(0, int(Tp*Fs))
     phi = np.random.uniform(0, 2*np.pi)
-    if condition == 'O':
+    if condition == 'O' or condition == 'W1' or condition == 'W2':
         Mod = np.ones_like(t)
     elif condition == 'I':
         Mod = 0.5*(1+np.cos(2*np.pi*fr*t + phi))
@@ -113,14 +118,25 @@ def def_features(v, fs, fault_freq, nlevel, f_range = 10, t_range = 0.001):
     t = np.arange(len(v)) / fs
     f, A = fft_simple(v-np.mean(v), fs)
     
-    idx_f_range = np.where((f >= fault_freq-f_range) & (f <= fault_freq+f_range))[0]
-    idx_t_range = np.where((t >= 1/fault_freq-t_range) & (t <= 1/fault_freq+t_range))[0]
-
+    harmonics = np.arange(1, 4)
+    idx_f_range = [
+        np.where((f >= k*fault_freq - f_range) & (f <= k*fault_freq + f_range))[0]
+        for k in harmonics
+    ]
+    idx_f_range = np.concatenate(idx_f_range)
+    
+    idx_t_range = [
+        np.where((t >= k/(fault_freq) - t_range) & (t <= k/(fault_freq) + t_range))[0]
+        for k in harmonics
+    ]
+    idx_t_range = np.concatenate(idx_t_range)
+    
     ###############################################################
     ######################## Basic statistics #####################
     ###############################################################
     rms = np.sqrt(np.mean(v**2))
     kurt = scipy.stats.kurtosis(v)
+    CF = np.max(np.abs(v))/rms
     
     ###############################################################
     ######################## Env Spectrum (raw) ###################
@@ -133,33 +149,27 @@ def def_features(v, fs, fault_freq, nlevel, f_range = 10, t_range = 0.001):
     ######################## Cepstrum ###################
     ###############################################################
     cep_signal = real_cepstrum(v-np.mean(v))
-    cep = np.mean(np.abs(cep_signal[idx_t_range]))
-
+    # cep = np.mean(np.abs(cep_signal[idx_t_range]))
+    cep = np.max(cep_signal[idx_t_range])/np.sqrt(np.mean(cep_signal[idx_t_range]**2))
     ###############################################################
     ######################## Kurtogram - maxK #####################
     ###############################################################
-    _, _, _, _, maxK_, _, _, Wn = kg.fast_kurtogram(v, fs, nlevel=nlevel)
+    _, _, _, _, kurt_filtered, _, _, Wn = kg.fast_kurtogram(v, fs, nlevel=nlevel)
     
     
     ###############################################################
     ######################## Filtered Signal #####################
     ###############################################################
     f, A, env, x_filtered = envelope_spectrum_band(v, fs, Wn)
-    env_filtered = np.mean(A[idx_t_range])/np.sqrt(np.mean(A**2))
+    rms_filtered = np.sqrt(np.mean(x_filtered**2))
+    env_filtered = np.mean(A[idx_f_range])/np.mean(A)
     cep_signal = real_cepstrum(x_filtered-np.mean(x_filtered))
-    cep_filtered = np.mean(np.abs(cep_signal[idx_t_range]))
-    
+    # cep_filtered = np.mean(np.abs(cep_signal[idx_t_range]))
+    cep_filtered = np.max(cep_signal[idx_t_range])/np.sqrt(np.mean(cep_signal[idx_t_range]**2))
     ###############################################################
     ######################## Final features #####################
-    feat = [rms, kurt, env_raw, cep, maxK_, env_filtered, cep_filtered]
-    
-    feat_names = ['rms', 'kurt', 'env_raw', 'cepstrum_raw', 'kurt_filtered', 'env_filtered', 'cepstrum_filtered']
-    
-    return feat, feat_names
+    feat = [rms, kurt, env_raw, cep, rms_filtered, kurt_filtered, env_filtered, cep_filtered]
 
-def def_features_seg(seg, fs, fault_freq, nlevel, f_range = 10, t_range = 0.001):
-    feat_all = []
-    for v in seg:
-        feat = def_features(v, fs, fault_freq, nlevel, f_range, t_range)
-        feat_all.append(feat)
-    return np.array(feat_all)
+    feat_names = ['rms', 'kurt', 'env_raw', 'cepstrum_raw', 'rms_filtered', 'kurt_filtered', 'env_filtered', 'cepstrum_filtered']
+
+    return feat, feat_names

@@ -38,3 +38,4 @@ data_field/
 data_field_description/
 utils/__pycache__/utils_plot.cpython-313.pyc
 utils/__pycache__/utils_processing.cpython-313.pyc
+backup/

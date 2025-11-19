@@ -9,6 +9,8 @@ def plot_raw(ax, t, x, title):
 def plot_spectrum(ax, x, fs, title, vlines=None, xlim=None, ylim=None):
     f, A = fft_simple(x-np.mean(x), fs)
     ax.plot(f, A, lw=0.8)
+    ax.set_title(title)
+    
     if vlines:
         for vf in vlines:
             ax.axvline(vf, ls='--', c='r', alpha=0.6)
@@ -24,6 +26,8 @@ def five_harmonics(base, n=5):
   
 def plot_cepstrum(ax, x, y, title, vlines=None, xlim=None, ylim=None):
     ax.plot(x, y, lw=0.8)
+    ax.set_title(title)
+    
     if vlines:
         for vf in vlines:
             ax.axvline(vf, ls='--', c='r', alpha=0.6)
