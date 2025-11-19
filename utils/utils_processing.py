@@ -8,6 +8,8 @@ from matplotlib import cm
 from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
 from scipy.signal import hilbert
+import scipy.stats
+from utils import kurtogram as kg
 
 def fft_simple(xn,fs):
   N=len(xn)
@@ -97,3 +99,67 @@ def fault_repeat_uncertainty(Unit_Fault, FCF, fr, t, Fs, FTF, condition, fr_std_
 
         i += base_step + jitter
     return x
+
+def real_cepstrum(x, n=None):
+
+    spectrum = np.fft.fft(x, n=n)
+    # ceps = np.fft.ifft(np.log(spectrum)).real
+    ceps = np.fft.ifft(np.log(np.abs(spectrum))).real
+
+
+    return ceps
+
+def def_features(v, fs, fault_freq, nlevel, f_range = 10, t_range = 0.001):
+    t = np.arange(len(v)) / fs
+    f, A = fft_simple(v-np.mean(v), fs)
+    
+    idx_f_range = np.where((f >= fault_freq-f_range) & (f <= fault_freq+f_range))[0]
+    idx_t_range = np.where((t >= 1/fault_freq-t_range) & (t <= 1/fault_freq+t_range))[0]
+
+    ###############################################################
+    ######################## Basic statistics #####################
+    ###############################################################
+    rms = np.sqrt(np.mean(v**2))
+    kurt = scipy.stats.kurtosis(v)
+    
+    ###############################################################
+    ######################## Env Spectrum (raw) ###################
+    ###############################################################
+    env = np.abs(hilbert(v))
+    f, A = fft_simple(env-np.mean(env), fs)
+    env_raw = np.mean(A[idx_f_range])/np.sqrt(np.mean(A**2))
+
+    ###############################################################
+    ######################## Cepstrum ###################
+    ###############################################################
+    cep_signal = real_cepstrum(v-np.mean(v))
+    cep = np.mean(np.abs(cep_signal[idx_t_range]))
+
+    ###############################################################
+    ######################## Kurtogram - maxK #####################
+    ###############################################################
+    _, _, _, _, maxK_, _, _, Wn = kg.fast_kurtogram(v, fs, nlevel=nlevel)
+    
+    
+    ###############################################################
+    ######################## Filtered Signal #####################
+    ###############################################################
+    f, A, env, x_filtered = envelope_spectrum_band(v, fs, Wn)
+    env_filtered = np.mean(A[idx_t_range])/np.sqrt(np.mean(A**2))
+    cep_signal = real_cepstrum(x_filtered-np.mean(x_filtered))
+    cep_filtered = np.mean(np.abs(cep_signal[idx_t_range]))
+    
+    ###############################################################
+    ######################## Final features #####################
+    feat = [rms, kurt, env_raw, cep, maxK_, env_filtered, cep_filtered]
+    
+    feat_names = ['rms', 'kurt', 'env_raw', 'cepstrum_raw', 'kurt_filtered', 'env_filtered', 'cepstrum_filtered']
+    
+    return feat, feat_names
+
+def def_features_seg(seg, fs, fault_freq, nlevel, f_range = 10, t_range = 0.001):
+    feat_all = []
+    for v in seg:
+        feat = def_features(v, fs, fault_freq, nlevel, f_range, t_range)
+        feat_all.append(feat)
+    return np.array(feat_all)

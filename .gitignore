@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+utils/__pycache__/
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env/
+.venv/
+ENV/
+
+# Jupyter
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# VS Code
+.vscode/
+
+# Data and large binaries
+data_field/
+data_field_description/
+*.mat
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Logs and temp
+*.log
+*.tmp
+*~
+
+# End of file
+data_field/
+data_field_description/
+utils/__pycache__/utils_plot.cpython-313.pyc
+utils/__pycache__/utils_processing.cpython-313.pyc

@@ -21,3 +21,15 @@ def plot_spectrum(ax, x, fs, title, vlines=None, xlim=None, ylim=None):
 
 def five_harmonics(base, n=5):
     return [k*base for k in range(1, n+1)]
+  
+def plot_cepstrum(ax, x, y, title, vlines=None, xlim=None, ylim=None):
+    ax.plot(x, y, lw=0.8)
+    if vlines:
+        for vf in vlines:
+            ax.axvline(vf, ls='--', c='r', alpha=0.6)
+
+    if xlim:
+        ax.set_xlim(xlim)
+    
+    if ylim:
+        ax.set_ylim(ylim)
